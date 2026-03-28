@@ -3,9 +3,14 @@ uvicorn
 google-cloud-aiplatform
 google-cloud-storage
 google-cloud-texttospeech
+google-cloud-logging
+google-cloud-pubsub
+google-cloud-secret-manager
+cachetools
 python-multipart
 pydantic
 python-dotenv
 httpx
 pytest
 pytest-asyncio
+pytest-mock

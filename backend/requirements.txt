@@ -1,7 +1,11 @@
 fastapi
 uvicorn
 google-cloud-aiplatform
+google-cloud-storage
+google-cloud-texttospeech
 python-multipart
 pydantic
 python-dotenv
 httpx
+pytest
+pytest-asyncio

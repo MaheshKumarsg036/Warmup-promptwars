@@ -44,21 +44,29 @@ const Dashboard: React.FC = () => {
         }
     };
 
-    const handleSpeak = (text: string) => {
-        if (!window.speechSynthesis) {
-            console.error("Speech Synthesis not supported");
-            return;
+    const [isSpeaking, setIsSpeaking] = useState(false);
+
+    const handleSpeak = async (text: string) => {
+        setIsSpeaking(true);
+        try {
+            const resp = await axios.post(`${API_BASE}/api/tts`, {
+                text,
+                persona
+            });
+            const audioBase64 = resp.data.audio;
+            const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+            audio.play();
+            audio.onended = () => setIsSpeaking(false);
+        } catch (err) {
+            console.error("Cloud TTS Error:", err);
+            // Fallback to browser TTS if cloud fails (Efficiency/Reliability)
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = persona === 'elderly' ? 0.8 : 1.0;
+            window.speechSynthesis.speak(utterance);
+            setIsSpeaking(false);
         }
-        console.log("Synthesizing speech for:", text.substring(0, 30) + "...");
-        window.speechSynthesis.cancel();
-        
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'en-US';
-        utterance.rate = persona === 'elderly' ? 0.8 : 1.0;
-        utterance.pitch = 1.1;
-        
-        utterance.onerror = (event) => console.error("Speech Synthesis Error:", event);
-        window.speechSynthesis.speak(utterance);
     };
 
     const handleDispatch = async () => {
@@ -238,19 +246,25 @@ const Dashboard: React.FC = () => {
                                     className="flex-1 flex flex-col gap-6"
                                 >
                                     {/* Transcription Box */}
-                                    <div className="p-6 rounded-3xl bg-white/5 border border-white/10">
+                                    <div 
+                                        className="p-6 rounded-3xl bg-white/5 border border-white/10"
+                                        role="region" 
+                                        aria-label="Situational Summary"
+                                    >
                                         <div className="flex items-center justify-between gap-2 mb-4">
                                             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-2">
                                                 <Activity size={12} className="text-red-500" /> Transcription / Summary
                                             </div>
                                             <button 
+                                                disabled={isSpeaking}
                                                 onClick={() => handleSpeak(result.transcription)}
-                                                className="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white transition-all flex items-center gap-2 text-[10px] font-bold uppercase"
+                                                className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-2 text-[10px] font-bold uppercase ${isSpeaking ? 'bg-cyan-500 text-white animate-pulse' : 'bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white'}`}
+                                                aria-busy={isSpeaking}
                                             >
-                                                <Volume2 size={12} /> Listen
+                                                <Volume2 size={12} /> {isSpeaking ? 'Vocalizing...' : 'Listen'}
                                             </button>
                                         </div>
-                                        <p className={`font-medium ${persona === 'elderly' ? 'text-3xl font-black leading-tight' : 'text-xl'}`}>
+                                        <p className={`font-medium ${persona === 'elderly' ? 'text-3xl font-black leading-tight' : 'text-xl'}`} aria-live="polite">
                                             {result.transcription}
                                         </p>
                                     </div>

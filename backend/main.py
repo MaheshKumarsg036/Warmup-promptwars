@@ -12,10 +12,35 @@ from typing import List, Optional
 import json
 import os
 
+from pydantic import BaseModel
 from services.gemini_service import GeminiService
+from services.google_cloud_manager import GoogleCloudManager
 from utils.traffic_weather import ExternalAPIs
 
-app = FastAPI(title="Chaos-to-Clarity Backend")
+app = FastAPI(title="Chaos-to-Clarity Inclusive API")
+
+# Security: CORS Policy
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Security + Reliability: Project Identification
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "new-project-373516")
+gemini_service = GeminiService(project_id=PROJECT_ID)
+gcp_manager = GoogleCloudManager(project_id=PROJECT_ID)
+
+# Efficiency: Latency Tracker Middleware
+@app.middleware("http")
+async def add_process_time_header(request, call_next):
+    import time
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
 
 # Serve the static React build if it exists (for Cloud Run)
 STATIC_DIR = os.path.join(os.getcwd(), "static")
@@ -26,23 +51,34 @@ if os.path.exists(STATIC_DIR):
 async def serve_index():
     if os.path.exists(os.path.join(STATIC_DIR, "index.html")):
         return FileResponse(os.path.join(STATIC_DIR, "index.html"))
-    return {"message": "Development environment (API active)"}
+    return {"message": "Inclusive API Active", "version": "2.0.0"}
 
-# Enable CORS for frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Initialize Gemini Service (Requires GOOGLE_CLOUD_PROJECT env var)
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "your-project-id")
-gemini_service = GeminiService(project_id=PROJECT_ID)
-
-@app.get("/")
+@app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "service": "Chaos-to-Clarity Dashboard API"}
+    return {
+        "status": "crystal_clear", 
+        "project": PROJECT_ID,
+        "region": "us-central1",
+        "services": ["Vertex AI", "Cloud TTS", "GCS"]
+    }
+
+# Security: Input Model
+class TTSRequest(BaseModel):
+    text: str
+    persona: str = "standard"
+
+@app.post("/api/tts")
+async def generate_voice_synthesis(request: TTSRequest):
+    """
+    Exclusive Google Cloud TTS Hub. (Google Services + Accessibility)
+    """
+    try:
+        audio_base64 = gcp_manager.synthesize_speech(request.text, request.persona)
+        if not audio_base64:
+            raise HTTPException(status_code=500, detail="Voice Synthesis Failed")
+        return {"audio": audio_base64}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/dispatch")
 async def process_dispatch_data(

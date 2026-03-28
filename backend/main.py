@@ -47,18 +47,25 @@ async def health_check():
 @app.post("/api/dispatch")
 async def process_dispatch_data(
     text: Optional[str] = Form(None),
-    images: List[UploadFile] = File(None),
+    persona: Optional[str] = Form("standard"),
+    files: List[UploadFile] = File(None),
     audio: Optional[UploadFile] = File(None)
 ):
     """
-    Main multimodal endpoint for the Chaos-to-Clarity dashboard.
+    Multimodal endpoint supporting PDFs and Inclusive Personas.
     """
     try:
-        # Prepare inputs for Gemini
-        image_bytes_list = []
-        if images:
-            for img in images:
-                image_bytes_list.append(await img.read())
+        # Separate files by type
+        image_bytes = []
+        pdf_bytes = []
+        
+        if files:
+            for file in files:
+                content = await file.read()
+                if file.content_type.startswith("image/"):
+                    image_bytes.append(content)
+                elif file.content_type == "application/pdf":
+                    pdf_bytes.append(content)
 
         audio_bytes = None
         if audio:
@@ -68,13 +75,15 @@ async def process_dispatch_data(
         traffic = ExternalAPIs.get_traffic_data()
         weather = ExternalAPIs.get_weather_data()
 
-        # Call Gemini
+        # Call Gemini with persona context
         response_text = await gemini_service.process_chaos_to_clarity(
             text=text,
-            image_bytes_list=image_bytes_list,
+            image_bytes_list=image_bytes,
+            pdf_bytes_list=pdf_bytes,
             audio_bytes=audio_bytes,
             traffic_data=traffic,
-            weather_data=weather
+            weather_data=weather,
+            persona=persona
         )
 
         # Gemini might return markdown JSON block, strip it

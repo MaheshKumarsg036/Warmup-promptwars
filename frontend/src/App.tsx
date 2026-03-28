@@ -9,11 +9,11 @@ import {
   Activity, 
   Navigation, 
   Hospital, 
-  Trash2, 
   Cpu,
   ChevronRight,
   BrainCircuit,
-  Maximize2
+  FileText,
+  Volume2
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -22,12 +22,15 @@ const API_BASE = 'http://localhost:8000';
 const Dashboard: React.FC = () => {
     const [isRecording, setIsRecording] = useState(false);
     const [images, setImages] = useState<File[]>([]);
+    const [pdfs, setPdfs] = useState<File[]>([]);
+    const [persona, setPersona] = useState<string>('standard');
     const [textInput, setTextInput] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [result, setResult] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pdfInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -35,14 +38,39 @@ const Dashboard: React.FC = () => {
         }
     };
 
+    const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            setPdfs(prev => [...prev, ...Array.from(e.target.files!)]);
+        }
+    };
+
+    const handleSpeak = (text: string) => {
+        if (!window.speechSynthesis) {
+            console.error("Speech Synthesis not supported");
+            return;
+        }
+        console.log("Synthesizing speech for:", text.substring(0, 30) + "...");
+        window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        utterance.rate = persona === 'elderly' ? 0.8 : 1.0;
+        utterance.pitch = 1.1;
+        
+        utterance.onerror = (event) => console.error("Speech Synthesis Error:", event);
+        window.speechSynthesis.speak(utterance);
+    };
+
     const handleDispatch = async () => {
-        if (!textInput && images.length === 0) return;
+        if (!textInput && images.length === 0 && pdfs.length === 0) return;
         setIsProcessing(true);
         setError(null);
         
         const formData = new FormData();
         formData.append('text', textInput);
-        images.forEach(img => formData.append('images', img));
+        formData.append('persona', persona);
+        images.forEach(img => formData.append('files', img));
+        pdfs.forEach(pdf => formData.append('files', pdf));
         
         try {
             const response = await axios.post(`${API_BASE}/api/dispatch`, formData);
@@ -73,39 +101,63 @@ const Dashboard: React.FC = () => {
                         <p className="text-slate-400 text-sm max-w-sm">Capture frantic audio, blurry photos, and panicky messages to bridge the gap.</p>
                     </div>
 
-                    <div className="flex-1 flex flex-col gap-6">
+                        <div className="flex-1 flex flex-col gap-6">
+                        {/* Persona Selector */}
+                        <div className="grid grid-cols-4 gap-2">
+                           {[
+                             {id: 'standard', label: 'Pro', icon: Activity},
+                             {id: 'adhd', label: 'ADHD', icon: BrainCircuit},
+                             {id: 'autism', label: 'Autism', icon: Activity},
+                             {id: 'elderly', label: 'Elderly', icon: Plus}
+                           ].map(p => (
+                             <button 
+                               key={p.id}
+                               onClick={() => setPersona(p.id)}
+                               className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${persona === p.id ? 'bg-red-500 border-red-400 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'}`}
+                             >
+                               <p.icon size={16} className="mb-1" />
+                               <span className="text-[9px] font-bold uppercase">{p.label}</span>
+                             </button>
+                           ))}
+                        </div>
+
                         {/* File Upload Area */}
-                        <div 
-                            className="relative group cursor-pointer aspect-video rounded-3xl border-2 border-dashed border-slate-800 bg-slate-900/40 hover:bg-slate-900/60 hover:border-red-500/40 transition-all flex flex-col items-center justify-center p-8 overflow-hidden"
-                            onClick={() => fileInputRef.current?.click()}
-                        >
-                            <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple hidden accept="image/*" />
-                            
-                            {images.length === 0 ? (
-                                <div className="text-center space-y-4">
-                                    <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mx-auto group-hover:bg-red-500/10 group-hover:text-red-500 transition-colors">
-                                        <Plus size={32} />
+                        <div className="grid grid-cols-2 gap-4">
+                            <div 
+                                className="relative group cursor-pointer aspect-square rounded-3xl border-2 border-dashed border-slate-800 bg-slate-900/40 hover:bg-slate-900/60 hover:border-red-500/40 transition-all flex flex-col items-center justify-center p-4"
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple hidden accept="image/*" />
+                                {images.length === 0 ? (
+                                    <div className="text-center space-y-2">
+                                        <Plus size={20} className="mx-auto" />
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase">Photos</p>
                                     </div>
-                                    <p className="text-slate-400 font-medium">Add Blurry Photos <br/><span className="text-xs opacity-50 font-normal">(Drag & Drop or Click)</span></p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-3 gap-3 w-full animate-in fade-in zoom-in duration-300">
-                                    {images.map((img, i) => (
-                                        <div key={i} className="aspect-square relative rounded-xl overflow-hidden group/img shadow-2xl">
-                                            <img src={URL.createObjectURL(img)} className="w-full h-full object-cover" alt="" />
-                                            <div className="absolute inset-0 bg-red-950/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
-                                                <AlertTriangle className="text-white" size={20} />
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); setImages([]) }} 
-                                        className="bg-black/60 backdrop-blur-md text-white p-2 rounded-full absolute top-4 right-4 hover:bg-red-600 transition-colors"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            )}
+                                ) : (
+                                    <div className="text-center">
+                                        <div className="text-red-500 font-black text-xl">{images.length}</div>
+                                        <p className="text-[8px] text-slate-500 uppercase">Img Ready</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div 
+                                className="relative group cursor-pointer aspect-square rounded-3xl border-2 border-dashed border-slate-800 bg-slate-900/40 hover:bg-slate-900/60 hover:border-cyan-500/40 transition-all flex flex-col items-center justify-center p-4"
+                                onClick={() => pdfInputRef.current?.click()}
+                            >
+                                <input type="file" ref={pdfInputRef} onChange={handlePdfChange} multiple hidden accept="application/pdf" />
+                                {pdfs.length === 0 ? (
+                                    <div className="text-center space-y-2">
+                                        <FileText size={20} className="mx-auto" />
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase">PDFs</p>
+                                    </div>
+                                ) : (
+                                    <div className="text-center">
+                                        <div className="text-cyan-500 font-black text-xl">{pdfs.length}</div>
+                                        <p className="text-[8px] text-slate-500 uppercase">PDF Analyzed</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Text & Mic Input */}
@@ -130,7 +182,7 @@ const Dashboard: React.FC = () => {
                             </div>
 
                             <button 
-                                disabled={isProcessing || (images.length === 0 && !textInput)}
+                                disabled={isProcessing || (images.length === 0 && pdfs.length === 0 && !textInput)}
                                 onClick={handleDispatch}
                                 className="w-full bg-white text-slate-950 hover:bg-red-50 hover:text-red-600 font-bold py-5 rounded-2xl shadow-xl hover:shadow-red-500/20 active:scale-[0.98] transition-all disabled:opacity-30 flex items-center justify-center gap-3 uppercase tracking-tighter text-lg"
                             >
@@ -163,7 +215,9 @@ const Dashboard: React.FC = () => {
                             <CheckCircle2 size={12} /> Actionable Clarity
                         </div>
                         <h2 className="text-4xl font-extrabold tracking-tight">Structured Output</h2>
-                        <p className="text-slate-400 text-sm max-w-sm text-left lg:text-right">Gemini 1.5 Pro instantly structuralizes the chaos into critical mission-ready data.</p>
+                        <p className="text-slate-400 text-sm max-w-sm text-left lg:text-right italic">
+                            Summarizing for: <span className="text-red-500 font-bold uppercase">{persona} Mode</span>
+                        </p>
                     </div>
 
                     <div className="flex-1 flex flex-col gap-6">
@@ -173,51 +227,76 @@ const Dashboard: React.FC = () => {
                                     <div className="w-20 h-20 rounded-full border border-dashed border-slate-800 flex items-center justify-center">
                                         <Activity size={32} />
                                     </div>
-                                    <p className="text-xs uppercase tracking-widest font-bold">Awaiting Data Core Injection</p>
+                                    <p className="text-xs uppercase tracking-widest font-bold">Awaiting Data Injection</p>
                                 </div>
                             ) : (
                                 <motion.div 
                                     initial={{ opacity: 0, x: 20 }}
                                     animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    key="result-panel"
                                     className="flex-1 flex flex-col gap-6"
                                 >
-                                    {/* Action Cards */}
+                                    {/* Transcription Box */}
+                                    <div className="p-6 rounded-3xl bg-white/5 border border-white/10">
+                                        <div className="flex items-center justify-between gap-2 mb-4">
+                                            <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-2">
+                                                <Activity size={12} className="text-red-500" /> Transcription / Summary
+                                            </div>
+                                            <button 
+                                                onClick={() => handleSpeak(result.transcription)}
+                                                className="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white transition-all flex items-center gap-2 text-[10px] font-bold uppercase"
+                                            >
+                                                <Volume2 size={12} /> Listen
+                                            </button>
+                                        </div>
+                                        <p className={`font-medium ${persona === 'elderly' ? 'text-3xl font-black leading-tight' : 'text-xl'}`}>
+                                            {result.transcription}
+                                        </p>
+                                    </div>
+
+                                    {/* Action Plan */}
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-4">
-                                            <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs uppercase tracking-wider">
+                                            <div className="flex items-center gap-2 text-cyan-400 font-bold text-[10px] uppercase tracking-wider">
                                                 <Navigation size={14} /> Global Route
                                             </div>
-                                            <div className="text-2xl font-black text-white">{result.action_plan.recommended_er ? result.action_plan.recommended_er.split('_').pop() : 'GPS_42'}</div>
-                                            <div className="text-[10px] text-slate-500 uppercase">Optimal Arrival: 4m 20s</div>
+                                            <div className="text-xl font-black text-white">{result.action_plan?.optimal_route?.[0] || 'ROUTE_CALC'}</div>
                                         </div>
                                         <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-4">
-                                            <div className="flex items-center gap-2 text-red-500 font-bold text-xs uppercase tracking-wider">
-                                                <AlertTriangle size={14} /> Severity
+                                            <div className="flex items-center gap-2 text-red-500 font-bold text-[10px] uppercase tracking-wider">
+                                                <Activity size={14} /> Severity
                                             </div>
-                                            <div className={`text-2xl font-black ${result.visual_analysis.severity === 'CRITICAL' ? 'text-red-500' : 'text-amber-500'}`}>
-                                                {result.visual_analysis.severity}
-                                            </div>
-                                            <div className="text-[10px] text-slate-500 uppercase">Immediate Action Required</div>
+                                            <div className="text-xl font-black text-white">{result.visual_analysis?.severity || 'PENDING'}</div>
                                         </div>
                                     </div>
 
-                                    {/* Medical Transcript */}
-                                    <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 space-y-4 overflow-y-auto max-h-[250px] shadow-2xl">
-                                        <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase">Mission Payload</div>
-                                            <Maximize2 size={12} className="text-slate-600" />
+                                    {/* Inclusive Steps */}
+                                    {result.action_plan?.inclusive_steps && (
+                                        <div className={`p-6 rounded-3xl border-2 ${persona === 'adhd' ? 'bg-amber-500/10 border-amber-500/20' : persona === 'autism' ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                                            <div className="flex items-center gap-3 mb-6">
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${persona === 'adhd' ? 'bg-amber-500 text-black' : persona === 'autism' ? 'bg-indigo-500' : 'bg-red-500'}`}>
+                                                    {persona === 'adhd' ? <BrainCircuit size={20} /> : <AlertTriangle size={20} />}
+                                                </div>
+                                                <h3 className="font-black text-white uppercase tracking-tighter">Inclusion Guide</h3>
+                                            </div>
+                                            <div className="space-y-3 font-medium">
+                                                {result.action_plan.inclusive_steps.map((st: string, idx: number) => (
+                                                    <div key={idx} className="flex gap-4 items-start p-4 rounded-2xl bg-black/20 border border-white/5">
+                                                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center shrink-0 text-[10px]">{idx+1}</div>
+                                                        <p className={`${persona === 'elderly' ? 'text-2xl font-bold' : 'text-sm'}`}>{st}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <pre className="text-sm font-mono text-cyan-400 leading-relaxed whitespace-pre-wrap">
-                                            {JSON.stringify(result, null, 2)}
-                                        </pre>
-                                    </div>
+                                    )}
 
                                     <div className="mt-auto flex gap-4">
                                         <button className="flex-1 py-4 px-6 bg-slate-800 hover:bg-slate-700 rounded-2xl font-bold flex items-center justify-center gap-2 text-sm transition-all border border-slate-700">
-                                            <Hospital size={18} /> Update ER
+                                            <Hospital size={18} /> Alert ER
                                         </button>
                                         <button className="flex-1 py-4 px-6 bg-cyan-600 hover:bg-cyan-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 text-sm transition-all shadow-lg shadow-cyan-900/20">
-                                            <Send size={18} /> Push Dispatch
+                                            <Send size={18} /> Radio Dispatch
                                         </button>
                                     </div>
                                 </motion.div>

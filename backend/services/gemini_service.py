@@ -8,68 +8,67 @@ class GeminiService:
         vertexai.init(project=project_id, location=location)
         self.model = GenerativeModel("gemini-2.5-flash")
 
-    async def process_chaos_to_clarity(self, text: str, image_bytes_list: List[bytes], audio_bytes: Optional[bytes] = None, traffic_data: dict = None, weather_data: dict = None):
+    async def process_chaos_to_clarity(self, text: str, image_bytes_list: List[bytes], audio_bytes: Optional[bytes] = None, pdf_bytes_list: List[bytes] = None, traffic_data: dict = None, weather_data: dict = None, persona: str = "standard"):
         """
-        Orchestrates the 'Chaos-to-Clarity' prompt as requested.
+        Tailors the summary for special abilities (ADHD, Autism, Elderly) and handles PDF analysis.
         """
         
-        # Simulated traffic/weather data into prompt context
-        context_prompt = f"""
-        Current System Context:
-        - Traffic Density: {traffic_data.get('density', 'Unavailable')}
-        - Weather Conditions: {weather_data.get('conditions', 'Unavailable')}
-        - Road Closure Status: {traffic_data.get('closures', 'None reported')}
-        """
+        # Accessibility-specific prompt instructions
+        persona_instructions = {
+            "adhd": "Summarize for ADHD: Use short bullet points, bolding key terms. Keep sentences extremely concise to maintain focus.",
+            "autism": "Summarize for Autism: Use clear, direct, and literal language. Avoid idioms or overwhelming data. Focus on logical sequences.",
+            "elderly": "Summarize for Elderly: Use high-contrast terminology. Focus on safety and simple steps. Assume larger fonts will be used.",
+            "standard": "Provide a professional, technical emergency dispatch summary."
+        }
 
         # Multimodal inputs
         contents = []
         
         # 1. Add images
-        for i, img_bytes in enumerate(image_bytes_list):
+        for img_bytes in image_bytes_list:
             contents.append(Part.from_data(data=img_bytes, mime_type="image/jpeg"))
 
-        # 2. Add audio (Simulated or actual)
+        # 2. Add PDFs
+        if pdf_bytes_list:
+            for pdf_bytes in pdf_bytes_list:
+                contents.append(Part.from_data(data=pdf_bytes, mime_type="application/pdf"))
+
+        # 3. Add audio
         if audio_bytes:
-             contents.append(Part.from_data(data=audio_bytes, mime_type="audio/webm")) # or wav
+             contents.append(Part.from_data(data=audio_bytes, mime_type="audio/webm"))
 
-        # 3. Add textual prompt
+        # 4. Add textual prompt
         input_prompt = f"""
-        Role: Universal Dispatch Bridge (AI Responder)
-        Scenario: An emergency scene with multiple data streams.
+        Role: Universal Inclusive Dispatch Bridge 
+        Context: The user has provided data streams (Photos/PDFs/Audio). 
+        Goal: Analyze available streams and provide 'Actionable Clarity' tailored for {persona}.
 
-        INPUTS:
-        - Frantic Audio: {text if not audio_bytes else "Process attached audio stream"}
-        - Blurry Visuals: Process attached image frames
-        {context_prompt}
+        ACCESSIBILITY FOCUS ({persona.upper()}): {persona_instructions.get(persona, persona_instructions['standard'])}
 
-        TASK:
-        1. Transcribe the frantic audio (even if bilingual or panicky).
-        2. Analyze the images for:
-           - Severity of incident
-           - Casualties detected
-           - Vehicle types (overturned, active hazard)
-           - Bounding boxes for key hazards (hazard_type: [ymin, xmin, ymax, xmax])
-        3. Consult the system context (traffic/weather) to propose the optimal route.
-        4. Output a clean, structured JSON medical/dispatch payload.
+        INPUT STREAMS:
+        - Audio/Text Overlay: {text if text else "Listen to attached stream" if audio_bytes else "NOT PROVIDED"}
+        - Visual/Document Data: Processes attached MULTIMODAL media. 
+
+        CRITICAL TASK:
+        - If a PDF is attached, analyze the text/metadata within the document.
+        - If photos are attached, analyze the scene.
+        - Combine all knowledge to create a structured dispatch summary. 
+        - Even if audio is 'NOT PROVIDED', do NOT report an error. Instead, focus 100% on the PDF/Photo intelligence.
 
         OUTPUT FORMAT (JSON exactly):
         {{
-            "transcription": "Extracted text here...",
+            "transcription": "Tailored situation summary (if audio is absent, summarize important PDF data here)...",
             "visual_analysis": {{
                 "severity": "CRITICAL|HIGH|MEDIUM|LOW",
-                "objects": [
-                    {{"label": "Overturned Car", "box_2d": [y1, x1, y2, x2]}}
-                ]
+                "objects": [{{"label": "string", "box_2d": [y1, x1, y2, x2]}}]
             }},
             "action_plan": {{
                 "optimal_route": ["Point A", "Point B"],
-                "traffic_delta": "Current traffic delay impact",
-                "recommended_er": "Nearest ER contact id"
+                "inclusive_steps": ["Step 1 for persona", "Step 2 for persona"]
             }},
             "medical_payload": {{
-              "patient_count": 0,
-              "injuries": ["list"],
-              "vitals_estimate": "based on visual/audio clues"
+              "summary": "Simplified for {persona} use",
+              "key_data": "JSON valid technical data"
             }}
         }}
 
